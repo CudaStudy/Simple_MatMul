@@ -1,2 +1,2 @@
 # Simple_MatMul
-Simple_MatMul in Cuda
+Simple matrix multiplication in Cuda
