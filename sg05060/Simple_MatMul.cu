@@ -26,7 +26,7 @@ __global__ void Simple_MatMul(float *_a, float *_b, float *_c, int m, int n, int
     for(int i = 0; i < k; i++)
         ret += __fmul_rn(_a[(k*row) + i],_b[(i*n)+ col]);
 
-    _c[(m * row + col)] = ret;
+    _c[(n * row + col)] = ret;
 
 }
 
@@ -70,9 +70,9 @@ int main(int argc, int** argv) {
             float ret = 0;
             for(int l = 0; l < k; l++)
                 ret += a[(k*i)+l] * b[(l*n) + j];
-            if(ret != c[i*m + j]) {
+            if(ret != c[i*n + j]) {
                 printf("the result is not matched! (%d, %d)\n"
-                , i, ret, c[i*m + j]);
+                , i, ret, c[i*n + j]);
                 result = false;
             }
         }
