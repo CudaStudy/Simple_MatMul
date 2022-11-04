@@ -5,14 +5,16 @@
 #define SIZE_N (512 * 4)
 #define SIZE_K (512 * 2)
 
+bool MatMul_GPU(float *_matA, float *_matB, float *_matC, int _m, int _n, int _k, dim3 _gridDim, dim3 _blockDim);
+
 int main(int argc, char *argv[])
 {
     // timer set
     DS_timer timer(4);
-    timer.setTimerName(0, "[CPU]");
-    timer.setTimerName(1, "[GPU]");
-    timer.setTimerName(2, "[DATA Transfer] : Host->Device");
-    timer.setTimerName(3, "[DATA Transfer] : Device->Host");
+    timer.setTimerName(0, (char *)"[CPU]");
+    timer.setTimerName(1, (char *)"[GPU]");
+    timer.setTimerName(2, (char *)"[DATA Transfer] : Host->Device");
+    timer.setTimerName(3, (char *)"[DATA Transfer] : Device->Host");
 
     // get matrix size spec
     // invalid argument, use default (1024_1024) x (1024_2048)
@@ -37,21 +39,25 @@ int main(int argc, char *argv[])
     int sizeC = m * n;
 
     // CPU matrix generation
-    float *A = NULL float *B = NULL;
-    allocNinitMem<float>(&A, sizeA);
-    allocNinitMem<float>(&B, sizeB);
+    float *h_A, *h_B, *h_C, *gpu_C;
 
-    float *h_C = NULL, float *d_C = NULL;
-    allocNinitMem<float>(&h_C, sizeC);
-    allocNinitMem<float>(&d_C, sizeC);
+    h_A = new float[sizeA];
+    h_B = new float[sizeB];
+    h_C = new float[sizeC];
+    gpu_C = new float[sizeC];
+
+    memset(h_A, 0, sizeA);
+    memset(h_B, 0, sizeB);
+    memset(h_C, 0, sizeC);
+    memset(gpu_C, 0, sizeC);
 
     for (int i = 0; i < sizeA; i++)
     {
-        A[i] = ((rand() % 10) + ((rand() % 100) / 100.0));
+        h_A[i] = ((rand() % 10) + ((rand() % 100) / 100.0));
     }
     for (int i = 0; i < sizeB; i++)
     {
-        B[i] = ((rand() % 10) + ((rand() % 100) / 100.0));
+        h_B[i] = ((rand() % 10) + ((rand() % 100) / 100.0));
     }
     printf("Step2: CPU Matrix generation finished\n");
 
@@ -62,10 +68,10 @@ int main(int argc, char *argv[])
         for (int col = 0; col < n; col++)
         {
             int c_idx = ID2INDEX(row, col, n);
-            h_c[c_idx] = 0;
-            for (int j = 0; j < k; j++)
+            h_C[c_idx] = 0;
+            for (int i = 0; i < k; i++)
             {
-                h_c[c_idx] += (A[ID2INDEX(row, i, k)] * B[ID2INDEX(i, col, n)]);
+                h_C[c_idx] += (h_A[ID2INDEX(row, i, k)] * h_B[ID2INDEX(i, col, n)]);
             }
         }
     }
@@ -73,20 +79,20 @@ int main(int argc, char *argv[])
     printf("Step3: CPU MatMul finished\n");
 
     // GPU matrix generation
-    float *dA, *dB, *dC;
+    float *d_A, *d_B, *d_C;
 
-    cudaMalloc(&dA, sizeA * sizeof(float));
-    cudaMalloc(&dB, sizeB * sizeof(float));
-    cudaMalloc(&dC, sizeC * sizeof(float));
+    cudaMalloc(&d_A, sizeA * sizeof(float));
+    cudaMalloc(&d_B, sizeB * sizeof(float));
+    cudaMalloc(&d_C, sizeC * sizeof(float));
 
-    cudaMemset(dA, 0, sizeA * sizeof(float));
-    cudaMemset(dB, 0, sizeB * sizeof(float));
-    cudaMemset(dC, 0, sizeC * sizeof(float));
+    cudaMemset(d_A, 0, sizeA * sizeof(float));
+    cudaMemset(d_B, 0, sizeB * sizeof(float));
+    cudaMemset(d_C, 0, sizeC * sizeof(float));
 
     timer.onTimer(2);
-    cudaMemcpy(dA, A, sizeA * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(dB, B, sizeB * sizeof(float), cudaMemcpyHostToDevice);
-    timer.onTimer(2);
+    cudaMemcpy(d_A, h_A, sizeA * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, sizeB * sizeof(float), cudaMemcpyHostToDevice);
+    timer.offTimer(2);
 
     printf("Step4: GPU matrix generation finished\n");
 
@@ -98,28 +104,35 @@ int main(int argc, char *argv[])
 
     // GPU Matmul
     timer.onTimer(1);
-    MatMul<<<gridDim, blockDim>>>(dA, dB, dC, m, n, k);
+    MatMul_GPU(d_A, d_B, d_C, m, n, k, gridDim, blockDim);
     cudaDeviceSynchronize();
     timer.offTimer(1);
     printf("Step7: GPU matrix multiplication finished\n");
 
     timer.onTimer(3);
-    cudaMemcpy(d_C, dC, sizeC * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(gpu_C, d_C, sizeC * sizeof(float), cudaMemcpyDeviceToHost);
     timer.offTimer(3);
-    pritnf("Step8: GPU result transfer to CPU finished\n");
+    printf("Step8: GPU result transfer to CPU finished\n");
 
     bool result = true;
     for (int i = 0; i < sizeC; i++)
     {
-        if (d_C[i] != dC[i])
+        if (h_C[i] != gpu_C[i])
         {
-            printf("[%d] not matched! (%f, %f)\n", i, d_C[i], dC[i]);
+            printf("[%d] not matched! (%f, %f)\n", i, h_C[i], gpu_C[i]);
             result = false;
         }
     }
     if (result)
     {
-        pritnf("GPU work well!\n");
+        printf("GPU work well!\n");
     }
+    timer.printTimer();
+
     return result;
+}
+
+bool MatMul_GPU(float *_matA, float *_matB, float *_matC, int _m, int _n, int _k, dim3 _gridDim, dim3 _blockDim)
+{
+    return kernelCall(_matA, _matB, _matC, _m, _n, _k, _gridDim, _blockDim);
 }
