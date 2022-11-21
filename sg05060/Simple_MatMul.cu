@@ -14,23 +14,23 @@
 #define k 2048
 #define BLOCK_SIZE 16
 
-__global__ void Simple_MatMul(float *_a, float *_b, float *_c, int m, int n, int k) {
+__global__ void Simple_MatMul(float *_a, float *_b, float *_c, int _m, int _n, int _k) {
     
     int row = threadIdx.x + blockDim.x * blockIdx.x;
     int col = threadIdx.y + blockDim.y * blockIdx.y;
     
-    if( row >= m || col >= n)
+    if( row >= _m || col >= _n)
         return;
 
     float ret = 0;
-    for(int i = 0; i < k; i++)
-        ret += __fmul_rn(_a[(k*row) + i],_b[(i*n)+ col]);
+    for(int i = 0; i < _k; i++)
+        ret += __fmul_rn(_a[(_k*row) + i],_b[(i*_n)+ col]);
 
-    _c[(n * row + col)] = ret;
+    _c[(_n * row + col)] = ret;
 
 }
 
-int main(int argc, int** argv) {
+int main(int argc, char** argv) {
 
     int size_A = m * k;
     int size_B = k * n;
@@ -61,8 +61,8 @@ int main(int argc, int** argv) {
     dim3 blockDim (BLOCK_SIZE, BLOCK_SIZE);
 
     Simple_MatMul<<<gridDim, blockDim>>>(_a,_b,_c,m,n,k);
-
-    cudaMemcpy(c, _c, size_C, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize(); 
+    cudaMemcpy(c, _c, sizeof(float)*size_C, cudaMemcpyDeviceToHost);
 
     bool result = true;
     for (int i = 0; i < m; i++) {
@@ -71,8 +71,8 @@ int main(int argc, int** argv) {
             for(int l = 0; l < k; l++)
                 ret += a[(k*i)+l] * b[(l*n) + j];
             if(ret != c[i*n + j]) {
-                printf("the result is not matched! (%d, %d)\n"
-                , i, ret, c[i*n + j]);
+                printf("the result is not matched! (%0.2f, %0.2f)\n"
+                ,ret, c[i*n + j]);
                 result = false;
             }
         }
