@@ -44,15 +44,15 @@ int main(void){
     b = new float[b_size];
     memset(b, 0, sizeof(float)*b_size);
     c = new float[row_size*col_size];
-    memset(b, 0, sizeof(float)*row_size*col_size);
+    memset(c, 0, sizeof(float)*row_size*col_size);
     d = new float[row_size*col_size];
-    memset(b, 0, sizeof(float)*row_size*col_size);
+    memset(d, 0, sizeof(float)*row_size*col_size);
 
     for(int i = 0; i<a_size;i++){
-        a[i] = rand() % 10;
+        a[i] = (float)(rand() % 10);
     }
     for(int i = 0; i<b_size;i++){
-        b[i] = rand() % 10;
+        b[i] = (float)(rand() % 10);
     }
 
     cudaMalloc(&d_a, sizeof(float)*a_size);
